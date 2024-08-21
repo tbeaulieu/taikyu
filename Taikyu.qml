@@ -259,6 +259,9 @@ Item {
         width: if(root.rpm <= 5000){30 + (root.rpm * 0.049)} else{
             (root.rpm * 0.1) - 224
         }
+        transitions: Transition {
+            PropertyAnimation { properties: "x"; easing.type: Easing.linear }
+        }
     }
     Rectangle{
         id: rpm_thing_2
@@ -274,7 +277,9 @@ Item {
         else{
             0
         }
-
+        transitions: Transition {
+            PropertyAnimation { properties: "x"; easing.type: Easing.linear }
+        }
     }
     Rectangle{
         id: rpm_thing_3
@@ -290,6 +295,9 @@ Item {
         else{
             0
         }
+        transitions: Transition {
+            PropertyAnimation { properties: "x"; easing.type: Easing.linear }
+        }
     }
     Item{
         id: rpm_line
@@ -302,39 +310,26 @@ Item {
             height: 188; width: 4
             color: root.white_color
         }
+        transitions: Transition {
+            PropertyAnimation { properties: "x"; easing.type: Easing.linear }
+        }
     }
     Image{
         x:0; y:0; z: 10
         id: rpm_line_mask
         source: './taikyu/tach-marker-mask.png';
-       
     } 
-    Image{
-        id: texture_mask
-        x:15.5; y:62; z: 5
-        // source: './taikyu/5pxpinistripe-mask.png'
-        source: './taikyu/5pxGridMask.png'
-        height: 209; width: 560
-        opacity: .4
-        fillMode: Image.Tile
-    }
     Image{
         id: tach_mask 
         x:0; y:0; z:8
         source: './taikyu/tach-mask.png'
     }
-
     Image{
         id: tach_outlines
         x: 28; y: 70; z: 11;
         source: if(!root.sidelight) './taikyu/tach-outlines.png'; else './taikyu/indiglo/tach-outlines.png'
         opacity: 0;
-    }
-    Image{
-        id: tach_splitter
-        x: 37; y: 111; z: 7
-        source: './taikyu/tach-splitter-line.png'
-    }   
+    }  
     Image{
         id: red_zone
         x: 576;y:70;z:1
@@ -413,7 +408,28 @@ Item {
             target: optional_inputs; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
         }
     }
-
+    Timer{
+            interval: 2500; running: root.ignition; repeat: false
+            onTriggered: fifth_step.start()
+        }
+    ParallelAnimation{
+        id: fifth_step
+        NumberAnimation{
+            target: cool_coolant_bar; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
+        }
+        NumberAnimation{
+            target: hot_coolant_bar; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
+        }
+        NumberAnimation{
+            target: coolant_soft_bkg; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
+        }
+        NumberAnimation{
+            target: fuel_bar; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
+        }
+        NumberAnimation{
+            target: fuel_soft_bkg; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
+        }
+    }
     Image{
         id: divider
         x: 20; y:277; z: 4
@@ -553,8 +569,8 @@ Item {
 
 
     Item{
-        id: coolant_temp_display
-        opacity: 0
+         id: coolant_temp_display
+        opacity: 0        
         Image{
             //124 px high
             source:if(!root.sidelight) './taikyu/coolant-mask.png'; else  './taikyu/indiglo/coolant-mask.png'
@@ -562,22 +578,28 @@ Item {
 
         }
         Rectangle{
+            id: cool_coolant_bar
             x: 20
             y: if (root.watertemp <= 100)432 - ((root.watertemp.toFixed(0) - 20) * 1.2125); else 335
             z:3
             color: if(!root.sidelight) root.white_color; else root.night_light_color
             width: 116 
+            opacity: 0
             height: if (root.watertemp <= 100)(root.watertemp.toFixed(0) - 20) * 1.2125; else 97
         }
         Rectangle{
+            id: hot_coolant_bar
             x: 20
             y:if (root.watertemp <= 120) 432 - ((root.watertemp - 20) * 1.2); else 313
             color: if(!root.sidelight) root.warning_red; else root.nightlight_pink
             width: 116;
+            opacity: 0
             height:if (root.watertemp <= 120)(root.watertemp - 20) * 1.2; else 119
             z:2
         }
         Rectangle{
+            id: coolant_soft_bkg
+            opacity: 0
             x:20; y: 313; z: 1
             height: 119; width: 116
             color: root.soft_bkg_color
@@ -607,10 +629,12 @@ Item {
             z: 3
         }
         Rectangle{
+            id: fuel_bar
             x: 672
             y: 432 - (root.fuel * 1.19)
             width: 116 
             height: root.fuel * 1.19
+            opacity: 0
             color: if (root.fuel > 30){
                     if(!root.sidelight) root.white_color; else root.night_light_color
                 }else{
@@ -619,6 +643,8 @@ Item {
             z:2
         }
         Rectangle{
+            id: fuel_soft_bkg
+            opacity: 0
             x:672; y: 313; z: 1
             height: 119; width: 116
             color: root.soft_bkg_color
@@ -702,7 +728,7 @@ Item {
         }
         Item{
             id: afr_group
-            visible: true //Set to False if you don't have a wideband input
+            visible: if(root.afrhigh !== 0) true; else false
             Image{
                 source: if(!root.sidelight) './taikyu/info-stripe.png'; else './taikyu/indiglo/info-stripe.png'
                 x: 423; y: 310; z:2;
@@ -757,7 +783,7 @@ Item {
         source: if (root.speedunits === 0){
             if(!root.sidelight) './taikyu/km.png'; else './taikyu/indiglo/km.png'
         }else{
-                        if(!root.sidelight) './taikyu/mi.png'; else './taikyu/indiglo/mi.png'
+            if(!root.sidelight) './taikyu/mi.png'; else './taikyu/indiglo/mi.png'
         }
     }
     Item{
