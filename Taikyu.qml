@@ -728,7 +728,7 @@ Item {
         }
         Item{
             id: afr_group
-            visible: if(root.afrhigh !== 0) true; else false
+            visible: false //Set to true if you have a wideband O2 sensor
             Image{
                 source: if(!root.sidelight) './taikyu/info-stripe.png'; else './taikyu/indiglo/info-stripe.png'
                 x: 423; y: 310; z:2;
