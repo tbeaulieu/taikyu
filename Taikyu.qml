@@ -259,8 +259,10 @@ Item {
         width: if(root.rpm <= 5000){30 + (root.rpm * 0.049)} else{
             (root.rpm * 0.1) - 224
         }
-        transitions: Transition {
-            PropertyAnimation { properties: "x"; easing.type: Easing.linear }
+        Behavior on width {
+            NumberAnimation {
+                duration: 10 //ms
+            }
         }
     }
     Rectangle{
@@ -277,8 +279,15 @@ Item {
         else{
             0
         }
-        transitions: Transition {
-            PropertyAnimation { properties: "x"; easing.type: Easing.linear }
+        Behavior on width {
+            NumberAnimation {
+                duration: 10 //ms
+            }
+        }
+        Behavior on opacity {
+            NumberAnimation {
+                duration: 10 //ms
+            }
         }
     }
     Rectangle{
@@ -295,8 +304,15 @@ Item {
         else{
             0
         }
-        transitions: Transition {
-            PropertyAnimation { properties: "x"; easing.type: Easing.linear }
+        Behavior on width {
+            NumberAnimation {
+                duration: 10 //ms
+            }
+        }
+        Behavior on opacity {
+            NumberAnimation {
+                duration: 10 //ms
+            }
         }
     }
     Item{
@@ -310,8 +326,10 @@ Item {
             height: 188; width: 4
             color: root.white_color
         }
-        transitions: Transition {
-            PropertyAnimation { properties: "x"; easing.type: Easing.linear }
+        Behavior on x {
+            NumberAnimation {
+                duration: 10 //ms
+            }
         }
     }
     Image{
@@ -728,7 +746,7 @@ Item {
         }
         Item{
             id: afr_group
-            visible: false //Set to true if you have a wideband O2 sensor
+            visible: if(root.afrhigh !== 0) true; else false
             Image{
                 source: if(!root.sidelight) './taikyu/info-stripe.png'; else './taikyu/indiglo/info-stripe.png'
                 x: 423; y: 310; z:2;
