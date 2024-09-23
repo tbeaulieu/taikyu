@@ -9,4 +9,4 @@ This dash will require you to update your gear settings (under settings -> gears
 
 (1st) 123 (2nd) 83 (3rd) 60 (4th) 47 (5th) 37 (6th) 33
 
-This file contains a font designed by me, feel free to use it elsewhere, but credit me.
+This file contains a font designed by me (23Segment.ttf), feel free to use it elsewhere, but credit me.
