@@ -250,69 +250,22 @@ Item {
         border.width: 0
         z: 0
     }
-    
     Rectangle{
-        id: rpm_thing_1
-        x:0; y:70; z:3
-        color: if(!root.sidelight) root.white_color; else night_light_color
-        height: 188
-        width: if(root.rpm <= 5000){30 + (root.rpm * 0.049)} else{
-            (root.rpm * 0.1) - 224
-        }
-        Behavior on width {
-            NumberAnimation {
-                duration: 10 //ms
-            }
-        }
-    }
-    Rectangle{
-        id: rpm_thing_2
+        id: rpm_thing
         x:0; y:70; z:4
-        color: if(!root.sidelight) root.sweetspot_color; else root.nightlight_orange
+        color: 
+            if(root.rpm<5000){
+                if(!root.sidelight) root.white_color; else night_light_color
+            }
+            else if(root.rpm>=5000 && root.rpm < 8000){
+                if(!root.sidelight) root.sweetspot_color; else root.nightlight_orange
+            }
+            else if(root.rpm>=8000){    
+                if(!root.sidelight) root.warning_red; else root.nightlight_pink
+            }
         height: 188
         width: if(root.rpm <= 5000){30 + (root.rpm * 0.049)} else{
             (root.rpm * 0.1) - 224
-        }
-        opacity: if(root.rpm > 4500){
-            (root.rpm-4500)/500
-        }
-        else{
-            0
-        }
-        Behavior on width {
-            NumberAnimation {
-                duration: 10 //ms
-            }
-        }
-        Behavior on opacity {
-            NumberAnimation {
-                duration: 10 //ms
-            }
-        }
-    }
-    Rectangle{
-        id: rpm_thing_3
-        x:0; y:70; z:4
-        color: if(!root.sidelight) root.warning_red; else root.nightlight_pink
-        height: 188
-        width: if(root.rpm <= 5000){30 + (root.rpm * 0.049)} else{
-            (root.rpm * 0.1) - 224
-        }
-        opacity: if(root.rpm > 7500){
-            (root.rpm-7500)/500
-        }
-        else{
-            0
-        }
-        Behavior on width {
-            NumberAnimation {
-                duration: 10 //ms
-            }
-        }
-        Behavior on opacity {
-            NumberAnimation {
-                duration: 10 //ms
-            }
         }
     }
     Item{
