@@ -240,6 +240,28 @@ Item {
         }
     }
 
+    function interpolateColor(rpm, startRpm, endRpm, startColor, endColor) {
+        // Ensure RPM is within bounds
+        let progress = Math.max(0, Math.min(1, (rpm - startRpm) / (endRpm - startRpm)));
+
+        // Convert hex colors to RGB
+        let startR = parseInt(startColor.slice(1, 3), 16);
+        let startG = parseInt(startColor.slice(3, 5), 16);
+        let startB = parseInt(startColor.slice(5, 7), 16);
+
+        let endR = parseInt(endColor.slice(1, 3), 16);
+        let endG = parseInt(endColor.slice(3, 5), 16);
+        let endB = parseInt(endColor.slice(5, 7), 16);
+
+        // Interpolate RGB values
+        let r = Math.round(startR + (endR - startR) * progress).toString(16).padStart(2, '0');
+        let g = Math.round(startG + (endG - startG) * progress).toString(16).padStart(2, '0');
+        let b = Math.round(startB + (endB - startB) * progress).toString(16).padStart(2, '0');
+
+        // Return hex color
+        return `#${r}${g}${b}`;
+    }
+
     Rectangle {
         id: background_rect
         x: 0   
@@ -253,15 +275,11 @@ Item {
     Rectangle{
         id: rpm_thing
         x:0; y:70; z:4
-        color: 
-            if(root.rpm<5000){
-                if(!root.sidelight) root.white_color; else night_light_color
-            }
-            else if(root.rpm>=5000 && root.rpm < 8000){
-                if(!root.sidelight) root.sweetspot_color; else root.nightlight_orange
-            }
-            else if(root.rpm>=8000){    
-                if(!root.sidelight) root.warning_red; else root.nightlight_pink
+        color: if(root.rpm < 7500) {
+                interpolateColor(root.rpm, 4500, 5000, !root.sidelight?root.white_color:night_light_color, !root.sidelight?root.sweetspot_color:root.nightlight_orange)
+                }
+            else{
+                interpolateColor(root.rpm, 7500, 8000, !root.sidelight?root.sweetspot_color:root.nightlight_orange, !root.sidelight? root.warning_red:root.nightlight_pink)
             }
         height: 188
         width: if(root.rpm <= 5000){30 + (root.rpm * 0.049)} else{
@@ -278,11 +296,6 @@ Item {
         Rectangle{
             height: 188; width: 4
             color: root.white_color
-        }
-        Behavior on x {
-            NumberAnimation {
-                duration: 10 //ms
-            }
         }
     }
     Image{
