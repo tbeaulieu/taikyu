@@ -272,18 +272,32 @@ Item {
         border.width: 0
         z: 0
     }
-    Rectangle{
+    Rectangle {
         id: rpm_thing
-        x:0; y:70; z:4
-        color: if(root.rpm < 7500) {
-                interpolateColor(root.rpm, 4500, 5000, !root.sidelight?root.white_color:night_light_color, !root.sidelight?root.sweetspot_color:root.nightlight_orange)
-                }
-            else{
-                interpolateColor(root.rpm, 7500, 8000, !root.sidelight?root.sweetspot_color:root.nightlight_orange, !root.sidelight? root.warning_red:root.nightlight_pink)
-            }
+        x: 0
+        y: 70
+        z: 4
         height: 188
-        width: if(root.rpm <= 5000){30 + (root.rpm * 0.049)} else{
-            (root.rpm * 0.1) - 224
+        width: root.rpm <= 5000 ? 30 + (root.rpm * 0.049) : (root.rpm * 0.1) - 224
+        property color currentColor: root.rpm < 7500 ? 
+            interpolateColor(root.rpm, 4500, 5000, 
+                !root.sidelight ? root.white_color : night_light_color, 
+                !root.sidelight ? root.sweetspot_color : root.nightlight_orange) :
+            interpolateColor(root.rpm, 7500, 8000, 
+                !root.sidelight ? root.sweetspot_color : root.nightlight_orange, 
+                !root.sidelight ? root.warning_red : root.nightlight_pink)
+        color: currentColor
+        Timer {
+            interval: 50 // 20 Hz
+            running: true
+            repeat: true
+            onTriggered: rpm_thing.currentColor = root.rpm < 7500 ? 
+                interpolateColor(root.rpm, 4500, 5000, 
+                    !root.sidelight ? root.white_color : night_light_color, 
+                    !root.sidelight ? root.sweetspot_color : root.nightlight_orange) :
+                interpolateColor(root.rpm, 7500, 8000, 
+                    !root.sidelight ? root.sweetspot_color : root.nightlight_orange, 
+                    !root.sidelight ? root.warning_red : root.nightlight_pink)
         }
     }
     Item{
@@ -291,7 +305,7 @@ Item {
         x: if(root.rpm <= 5000){28 + (root.rpm * 0.049)} else{
             (root.rpm * 0.1) - 225
         }
-        opacity: 1
+        opacity: 0
         y:70;z:9
         Rectangle{
             height: 188; width: 4
@@ -301,7 +315,8 @@ Item {
     Image{
         x:0; y:0; z: 10
         id: rpm_line_mask
-        source: './taikyu/tach-marker-mask.png';
+        source: !root.sidelight ? './taikyu/tach-marker-mask.png' : './taikyu/indiglo/tach-marker-mask.png'
+        opacity:0
     } 
     Image{
         id: tach_mask 
@@ -320,12 +335,7 @@ Item {
         source: './taikyu/red-zone.png'
     }
 
-    Image{
-        id: tach_marker
-        x: 6; y: 20; z: 11
-        source: if(!root.sidelight) './taikyu/tach-markers.png'; else './taikyu/indiglo/tach-markers.png'
-        opacity: 0;
-    }
+    
     Timer{
         interval:0; running:root.ignition; repeat: false
         onTriggered: first_step.start()
@@ -344,8 +354,9 @@ Item {
     ParallelAnimation{
         id: second_step
         NumberAnimation{
-                target: tach_marker; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
+                target: rpm_line_mask; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
             }
+        
         NumberAnimation{
             target: speed_text; property: "opacity"; from: 0.00; to: 1.00; duration: 1000;
         }
@@ -381,6 +392,9 @@ Item {
         NumberAnimation{
             target: fuel_level_display; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
         }
+        NumberAnimation{
+                target: rpm_line; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
+            }
     }
     Timer{
         interval: 2000; running: root.ignition; repeat: false
