@@ -240,26 +240,31 @@ Item {
         }
     }
 
-    function interpolateColor(rpm, startRpm, endRpm, startColor, endColor) {
+   function interpolateColor(rpm, startRpm, endRpm, startColor, endColor) {
         // Ensure RPM is within bounds
-        let progress = Math.max(0, Math.min(1, (rpm - startRpm) / (endRpm - startRpm)));
+        var progress = Math.max(0, Math.min(1, (rpm - startRpm) / (endRpm - startRpm)));
 
         // Convert hex colors to RGB
-        let startR = parseInt(startColor.slice(1, 3), 16);
-        let startG = parseInt(startColor.slice(3, 5), 16);
-        let startB = parseInt(startColor.slice(5, 7), 16);
+        var startR = parseInt(startColor.substring(1, 3), 16);
+        var startG = parseInt(startColor.substring(3, 5), 16);
+        var startB = parseInt(startColor.substring(5, 7), 16);
 
-        let endR = parseInt(endColor.slice(1, 3), 16);
-        let endG = parseInt(endColor.slice(3, 5), 16);
-        let endB = parseInt(endColor.slice(5, 7), 16);
+        var endR = parseInt(endColor.substring(1, 3), 16);
+        var endG = parseInt(endColor.substring(3, 5), 16);
+        var endB = parseInt(endColor.substring(5, 7), 16);
 
         // Interpolate RGB values
-        let r = Math.round(startR + (endR - startR) * progress).toString(16).padStart(2, '0');
-        let g = Math.round(startG + (endG - startG) * progress).toString(16).padStart(2, '0');
-        let b = Math.round(startB + (endB - startB) * progress).toString(16).padStart(2, '0');
+        var r = Math.round(startR + (endR - startR) * progress).toString(16);
+        var g = Math.round(startG + (endG - startG) * progress).toString(16);
+        var b = Math.round(startB + (endB - startB) * progress).toString(16);
+
+        // Manually pad hex values to ensure two digits
+        r = r.length < 2 ? "0" + r : r;
+        g = g.length < 2 ? "0" + g : g;
+        b = b.length < 2 ? "0" + b : b;
 
         // Return hex color
-        return `#${r}${g}${b}`;
+        return "#" + r + g + b;
     }
 
     Rectangle {
