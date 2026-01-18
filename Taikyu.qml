@@ -152,24 +152,16 @@ Item {
     property int peak_oil: 0
     property bool car_movement: false
 
-    //Master Function for peak values
-    function checkPeaks(){
-        if(root.rpm > root.peak_rpm){
-            root.peak_rpm = root.rpm
-        }
-        if(root.speed > root.peak_speed){
-            root.peak_speed = root.speed
-        }
-        if(root.watertemp > root.peak_water){
-            root.peak_water = root.watertemp
-        }
-        if(root.oiltemp > root.peak_oil){
-            root.peak_oil = root.oiltemp
-        }
-        if(root.speed > 10 && !root.car_movement){
-            root.car_movement = true
-        }
+    onRpmChanged: if (rpm > peak_rpm) peak_rpm = rpm
+
+    onSpeedChanged: {
+        if (speed > peak_speed) peak_speed = speed
+        if (speed > 10 && !car_movement) car_movement = true
     }
+
+    onWatertempChanged: if (watertemp > peak_water) peak_water = watertemp
+
+    onOiltempChanged: if (oiltemp > peak_oil) peak_oil = oiltemp
    
     //Utility  
     function easyFtemp(degreesC){
@@ -210,12 +202,6 @@ Item {
             }
         }
     }
-    
-    //Master Timer 
-    Timer{
-        interval: 2; running: true; repeat: true
-        onTriggered: checkPeaks()
-    }
 
     function getGear(){
         switch(rpmtest.geardata){
@@ -240,31 +226,26 @@ Item {
         }
     }
 
-   function interpolateColor(rpm, startRpm, endRpm, startColor, endColor) {
+    function interpolateColor(rpm, startRpm, endRpm, startColor, endColor) {
         // Ensure RPM is within bounds
-        var progress = Math.max(0, Math.min(1, (rpm - startRpm) / (endRpm - startRpm)));
+        let progress = Math.max(0, Math.min(1, (rpm - startRpm) / (endRpm - startRpm)));
 
         // Convert hex colors to RGB
-        var startR = parseInt(startColor.substring(1, 3), 16);
-        var startG = parseInt(startColor.substring(3, 5), 16);
-        var startB = parseInt(startColor.substring(5, 7), 16);
+        let startR = parseInt(startColor.slice(1, 3), 16);
+        let startG = parseInt(startColor.slice(3, 5), 16);
+        let startB = parseInt(startColor.slice(5, 7), 16);
 
-        var endR = parseInt(endColor.substring(1, 3), 16);
-        var endG = parseInt(endColor.substring(3, 5), 16);
-        var endB = parseInt(endColor.substring(5, 7), 16);
+        let endR = parseInt(endColor.slice(1, 3), 16);
+        let endG = parseInt(endColor.slice(3, 5), 16);
+        let endB = parseInt(endColor.slice(5, 7), 16);
 
         // Interpolate RGB values
-        var r = Math.round(startR + (endR - startR) * progress).toString(16);
-        var g = Math.round(startG + (endG - startG) * progress).toString(16);
-        var b = Math.round(startB + (endB - startB) * progress).toString(16);
-
-        // Manually pad hex values to ensure two digits
-        r = r.length < 2 ? "0" + r : r;
-        g = g.length < 2 ? "0" + g : g;
-        b = b.length < 2 ? "0" + b : b;
+        let r = Math.round(startR + (endR - startR) * progress).toString(16).padStart(2, '0');
+        let g = Math.round(startG + (endG - startG) * progress).toString(16).padStart(2, '0');
+        let b = Math.round(startB + (endB - startB) * progress).toString(16).padStart(2, '0');
 
         // Return hex color
-        return "#" + r + g + b;
+        return `#${r}${g}${b}`;
     }
 
     Rectangle {
@@ -292,17 +273,8 @@ Item {
                 !root.sidelight ? root.sweetspot_color : root.nightlight_orange, 
                 !root.sidelight ? root.warning_red : root.nightlight_pink)
         color: currentColor
-        Timer {
-            interval: 50 // 20 Hz
-            running: true
-            repeat: true
-            onTriggered: rpm_thing.currentColor = root.rpm < 7500 ? 
-                interpolateColor(root.rpm, 4500, 5000, 
-                    !root.sidelight ? root.white_color : night_light_color, 
-                    !root.sidelight ? root.sweetspot_color : root.nightlight_orange) :
-                interpolateColor(root.rpm, 7500, 8000, 
-                    !root.sidelight ? root.sweetspot_color : root.nightlight_orange, 
-                    !root.sidelight ? root.warning_red : root.nightlight_pink)
+        Behavior on color {
+            ColorAnimation { duration: 50 }  // Smooth over one frame
         }
     }
     Item{
@@ -522,17 +494,23 @@ Item {
             x:586; y: 130; z:16
             visible: if(root.rpm >= root.rpmlimit) true; else false
             source: if(!root.sidelight)'./taikyu/rpm-container-warning.png'; else './taikyu/indiglo/rpm-container-warning.png'
-            Timer{
-                id: rpm_shift_blink
-                running: true
-                interval: 50
-                repeat: true
-                onTriggered: if(parent.opacity === 0){
-                    parent.opacity = 100
+            SequentialAnimation {
+                id: shiftBlinkAnimation
+                running: root.rpm >= root.rpmlimit
+                loops: Animation.Infinite
+                
+                NumberAnimation {
+                    target: rpm_container_blink
+                    property: "opacity"
+                    to: 100
+                    duration: 50
                 }
-                else{
-                    parent.opacity = 0
-                } 
+                NumberAnimation {
+                    target: rpm_container_blink
+                    property: "opacity"
+                    to: 0
+                    duration: 50
+                }
             }
         }
         
