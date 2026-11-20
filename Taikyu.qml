@@ -1,844 +1,420 @@
+/****************************************************************************
+** Based on the Qt examples (Copyright (C) 2012 Nokia Corporation), BSD
+** license. See the original file header for the full license text.
+****************************************************************************/
+
 import QtQuick 2.3
 import QtGraphicalEffects 1.0
 
-// .----------------------------------------------------------------------.
-// |                                                                      |
-// |                                                                      |
-// |          _/_/_/  _/    _/  _/_/_/    _/_/_/_/  _/_/_/                |
-// |       _/        _/    _/  _/    _/  _/        _/    _/               |
-// |        _/_/    _/    _/  _/_/_/    _/_/_/    _/_/_/                  |
-// |           _/  _/    _/  _/        _/        _/    _/                 |
-// |    _/_/_/      _/_/    _/        _/_/_/_/  _/    _/                  |
-// |    _/_/_/_/_/          _/  _/                            _/  _/      |
-// |       _/      _/_/_/      _/  _/    _/    _/  _/    _/  _/  _/       |
-// |      _/    _/    _/  _/  _/_/      _/    _/  _/    _/  _/  _/        |
-// |     _/    _/    _/  _/  _/  _/    _/    _/  _/    _/                 |
-// |    _/      _/_/_/  _/  _/    _/    _/_/_/    _/_/_/  _/  _/          |
-// |                                       _/                             |
-// |                                  _/_/                                |
-// |                                                                      |
-// |                                                                      |
-// '----------------------------------------------------------------------'
+import FileIO 1.0
 
+Item{
+    id:root
 
+    property int udp_message:rpmtest.udp_packetdata
+    // onUdp_messageChanged: console.log(" UDP is "+udp_message)
 
-Item {
-    id: root
-    ////////// IC7 LCD RESOLUTION ////////////////////////////////////////////
-    width: 800
-    height: 480
-    
-    z: 0
-    
-    property int myyposition: 0
-    property int udp_message: rpmtest.udp_packetdata
+    property bool udp_up:udp_message&0x01
+    property bool udp_down:udp_message&0x02
+    property bool udp_left:udp_message&0x04
+    property bool udp_right:udp_message&0x08
+    property int odometer:if(speedunits==0)rpmtest.odometer0data;else rpmtest.odometer0data*0.62
+    property int tripmeter:if(speedunits==0)rpmtest.tripmileage0data;else rpmtest.tripmileage0data*0.62
+    property real rpm:rpmtest.rpmdata
+    property real speed:rpmtest.speeddata
+    property int speedunits:1
+    property real watertemp:rpmtest.watertempdata
+    property real fuel:rpmtest.fueldata
+    property real o2:rpmtest.o2data
+    property real map:rpmtest.mapdata
+    property real maf:rpmtest.mafdata
+    property real oilpressure:rpmtest.oilpressuredata
+    property real oiltemp: rpmtest.oiltempdata
+    property real batteryvoltage:rpmtest.batteryvoltagedata
 
-    property bool udp_up: udp_message & 0x01
-    property bool udp_down: udp_message & 0x02
-    property bool udp_left: udp_message & 0x04
-    property bool udp_right: udp_message & 0x08
+    property real symbols:rpmtest.symbolsdata
+    property real symbols2:rpmtest.symbols2data
 
-    property int membank2_byte7: rpmtest.can203data[10]
-    property int inputs: rpmtest.inputsdata
+    property real gearpos:rpmtest.geardata
+
+    property real rpmlimit:8000
+    property real shiftvalue:0
+    property string colorscheme: "green"
+    property int red: 255
+    property int green: 128
+    property int blue: 100
+
+    property real rpmdamping:1
+
+    property real batterylow:0
+    property real batteryhigh:0
+    property real batteryunits:0
+
+    // Wideband. o2data arrives as lambda; the limits are always in AFR (lambda x 14.7).
+    property real afrlow:0                // 0 = no rich warning
+    property real afrhigh:0               // 0 = no lean warning
+    property int afrunits:1               // 0 = show lambda, 1 = show AFR
+
+    // Optional readouts, off until switched on in the menu
+    property int afrshow:0
+    property int oiltempshow:0
+    property int oilpressureshow:0
+
+    // Defaults for a fresh install (no JSON and no old .txt to migrate).
+    // Limits are always in Celsius, whatever units are displayed; 0 = no warning.
+    property int waterlow:0
+    property int waterhigh:105
+    property int waterunits:1
+    property int fuellow:10
+    property int fuelhigh:0
+    property int fuelunits:1
+    property int oiltemplow:0
+    property int oiltemphigh:130
+    property int oiltempunits:1
+    property int oilpressurelow:0
+    property int oilpressurehigh:0
+    property int oilpressureunits:0
+    property real night_time_hue:0
+
+    property bool settings_on_off:false
+    property bool menu_on_off:rpmtest.settings_on_offdata&0x02
+
+    onSettings_on_offChanged: {
+        if(settings_on_off) rpmtest.settings_on_offdata=rpmtest.settings_on_offdata|0x01
+        else rpmtest.settings_on_offdata=rpmtest.settings_on_offdata&~0x01
+    }
+
+    width:800
+    height:480
+    x: 0
+
+    FontLoader {
+        id: geistFont
+        source: "./fonts/GeistVariableVF.ttf"
+    }
+    ///////////////////////////////
+    // Config (JSON)
+    ///////////////////////////////
+
+    FileIO {
+        id: config_json
+        source: "/opt/IC7/screen_configs/Taikyu_config.json"
+        onError: console.log(msg)
+    }
+
+    // Old positional files, read once for migration only.
+    // v5+ firmware keeps them in /opt/IC7, v4 kept them in /opt/Garw_IC7.
+    FileIO {
+        id: config_file
+        source: "/opt/IC7/screen_configs/Taikyu_config.txt"
+        onError: console.log(msg)
+    }
+    FileIO {
+        id: config_file_v4
+        source: "/opt/Garw_IC7/screen_configs/Taikyu_config.txt"
+        onError: console.log(msg)
+    }
+
+    // The schema. One entry per setting.
+    //   disabled: true -> the property still exists (so the dial can bind to it),
+    //   but it is hidden from the menu and not written to or read from the JSON.
+    readonly property var schema: [
+        { key: "colorscheme",      type: "string" },
+        { key: "red" },  { key: "green" },  { key: "blue" },
+        { key: "waterhigh" },      { key: "waterunits" },
+        { key: "fuellow" },
+        { key: "oiltempshow" },    { key: "oiltemphigh" },     { key: "oiltempunits" },
+        { key: "oilpressureshow" },{ key: "oilpressureunits" },
+        { key: "afrshow" },        { key: "afrunits" },        { key: "afrhigh" },        { key: "afrlow" },
+        { key: "speedunits" },     { key: "rpmlimit" },
+        // the Taikyu dial has nothing that uses these
+        { key: "waterlow",         disabled: true },
+        { key: "fuelhigh",         disabled: true },
+        { key: "fuelunits",        disabled: true },
+        { key: "oiltemplow",       disabled: true },
+        { key: "oilpressurelow",   disabled: true },
+        { key: "oilpressurehigh",  disabled: true },
+        { key: "shiftvalue",       disabled: true },
+        { key: "night_time_hue",   disabled: true },
+        { key: "rpmdamping",       disabled: true },
+        { key: "batterylow",       disabled: true },
+        { key: "batteryhigh",      disabled: true }
+    ]
+
+    // What the menu should list and what gets persisted
+    readonly property var editableSettings: schema.filter(function(s) { return !s.disabled })
+
+    // Old positional layout (line number -> key), used once for migration
+    readonly property var legacyKeys: [
+        "colorscheme", "red", "green", "blue",
+        "waterlow", "waterhigh", "waterunits",
+        "fuellow", "fuelhigh", "fuelunits",
+        "oiltemplow", "oiltemphigh", "oiltempunits",
+        "oilpressurelow", "oilpressurehigh", "oilpressureunits",
+        "speedunits", "rpmlimit", "shiftvalue", "night_time_hue",
+        "batterylow", "batteryhigh", "rpmdamping",
+        null,                       // line 23 was unused
+        "afrhigh", "afrlow"
+    ]
+
+    function schemaEntry(key) {
+        for (var i = 0; i < schema.length; i++)
+            if (schema[i].key === key) return schema[i]
+        return null
+    }
+
+    // IC7 FileIO returns one line per open, so re-open for every line
+    function readLines(f, maxLines) {
+        var out = []
+        for (var i = 0; i < maxLines; i++) {
+            var s = ""
+            try { f.openforreading(); s = f.readopenfile(i); f.close() }
+            catch (e) { console.log("config read failed at line " + i + ": " + e) }
+            if (s === "" || s === undefined || s === null) break
+            out.push(String(s))
+        }
+        return out
+    }
+
+    function applyConfigValue(key, v) {
+        var e = schemaEntry(key)
+        if (!e || e.disabled) return
+        if (e.type === "string") root[key] = String(v)
+        else if (!isNaN(Number(v))) root[key] = Number(v)
+    }
+
+    // returns "json", "legacy", "none" or "error"
+    function loadConfig() {
+        var lines = readLines(config_json, 300)
+        if (lines.length > 0) {
+            try {
+                var obj = JSON.parse(lines.join("\n"))
+                for (var i = 0; i < editableSettings.length; i++) {
+                    var k = editableSettings[i].key
+                    if (obj.hasOwnProperty(k)) applyConfigValue(k, obj[k])
+                }
+                return "json"
+            } catch (e) {
+                console.log("config JSON invalid, keeping defaults and NOT overwriting: " + e)
+                return "error"
+            }
+        }
+        var old = readLines(config_file, 26)
+        if (old.length === 0) old = readLines(config_file_v4, 26)
+        if (old.length > 0) {
+            for (var j = 0; j < old.length && j < legacyKeys.length; j++) {
+                var lk = legacyKeys[j]
+                // The old AFR High / Low never acted as limits on this dash, so they are not imported
+                if (lk && lk !== "afrhigh" && lk !== "afrlow") applyConfigValue(lk, old[j])
+            }
+            // The old dash showed oil temp / oil pressure when their High was above zero,
+            // and always showed AFR. Carry that over to the new Show settings.
+            var oth = Number(old[legacyKeys.indexOf("oiltemphigh")])
+            var oph = Number(old[legacyKeys.indexOf("oilpressurehigh")])
+            root.oiltempshow     = (!isNaN(oth) && oth !== 0) ? 1 : 0
+            root.oilpressureshow = (!isNaN(oph) && oph !== 0) ? 1 : 0
+            root.afrshow = 1
+            return "legacy"
+        }
+        return "none"
+    }
+
+    function save_settings() {
+        var obj = {}
+        for (var i = 0; i < editableSettings.length; i++)
+            obj[editableSettings[i].key] = root[editableSettings[i].key]
+        try {
+            config_json.open()
+            config_json.writetoopenfile(JSON.stringify(obj, null, 2) + "\n")   // single write
+            config_json.close()
+        } catch (e) { console.log("config write failed: " + e) }
+    }
+
+    Component.onCompleted: {
+        try { rpmtest.DISABLE_WARNING_OVERLAY = "YES_WARNINGS_HANDLED_LOCALLY" } catch (e) {}
+        var r = loadConfig()
+        if (r === "legacy" || r === "none") save_settings()   // migrate / seed defaults
+    }
+
+    ///////////////////////////////
+    // Inputs (unchanged)
+    ///////////////////////////////
+
+    property int inputs:rpmtest.inputsdata
 
     //Inputs//31 max!!
-    property bool ignition: inputs & 0x01
-    property bool battery: inputs & 0x02
-    property bool lapmarker: inputs & 0x04
-    property bool rearfog: inputs & 0x08
-    property bool mainbeam: inputs & 0x10
-    property bool up_joystick: inputs & 0x20 || root.udp_up
-    property bool leftindicator: inputs & 0x40
-    property bool rightindicator: inputs & 0x80
-    property bool brake: inputs & 0x100
-    property bool oil: inputs & 0x200
-    property bool seatbelt: inputs & 0x400
-    property bool sidelight: inputs & 0x800
-    property bool tripresetswitch: inputs & 0x1000
-    property bool down_joystick: inputs & 0x2000 || root.udp_down
-    property bool doorswitch: inputs & 0x4000
-    property bool airbag: inputs & 0x8000
-    property bool tc: inputs & 0x10000
-    property bool abs: inputs & 0x20000
-    property bool mil: inputs & 0x40000
-    property bool shift1_id: inputs & 0x80000
-    property bool shift2_id: inputs & 0x100000
-    property bool shift3_id: inputs & 0x200000
-    property bool service_id: inputs & 0x400000
-    property bool race_id: inputs & 0x800000
-    property bool sport_id: inputs & 0x1000000
-    property bool cruise_id: inputs & 0x2000000
-    property bool reverse: inputs & 0x4000000
-    property bool handbrake: inputs & 0x8000000
-    property bool tc_off: inputs & 0x10000000
-    property bool left_joystick: inputs & 0x20000000 || root.udp_left
-    property bool right_joystick: inputs & 0x40000000 || root.udp_right
+    property bool ignition      :inputs&0x01
+    property bool battery       :inputs&0x02
+    property bool lapmarker     :inputs&0x04
+    property bool rearfog       :inputs&0x08
+    property bool mainbeam      :inputs&0x10
+    property bool up_joystick   :inputs&0x20 || root.udp_up
+    property bool leftindicator :inputs&0x40
+    property bool rightindicator:inputs&0x80
+    property bool brake         :inputs&0x100
+    property bool oil           :inputs&0x200
+    property bool seatbelt      :inputs&0x400
+    property bool sidelight     :inputs&0x800
+    property bool tripresetswitch     :inputs&0x1000
+    property bool down_joystick :inputs&0x2000 || root.udp_down
+    property bool doorswitch    :inputs&0x4000
+    property bool airbag        :inputs&0x8000
+    property bool tc            :inputs&0x10000
+    property bool abs           :inputs&0x20000
+    property bool mil           :inputs&0x40000
+    property bool shift1_id     :inputs&0x80000
+    property bool shift2_id     :inputs&0x100000
+    property bool shift3_id     :inputs&0x200000
+    property bool service_id    :inputs&0x400000
+    property bool race_id       :inputs&0x800000
+    property bool sport_id      :inputs&0x1000000
+    property bool cruise_id     :inputs&0x2000000
+    property bool reverse:inputs&0x4000000
+    property bool handbrake :inputs&0x8000000
+    property bool tc_off     :inputs&0x10000000
+    property bool left_joystick :inputs&0x20000000 || root.udp_left
+    property bool right_joystick:inputs&0x40000000 || root.udp_right
 
-    property int odometer: rpmtest.odometer0data/10*0.62 //Need to div by 10 to get 6 digits with leading 0
-    property int tripmeter: rpmtest.tripmileage0data*0.62
-    property real value: 0
-    property real shiftvalue: 0
+    onUp_joystickChanged: console.log("up")
+    onDown_joystickChanged: console.log("down")
+    onLeft_joystickChanged: console.log("left")
+    onRight_joystickChanged: console.log("right")
 
-    property real rpm: rpmtest.rpmdata
-    property real rpmlimit: 8000 //Originally was 7k, switched to 8000 -t
-    property real rpmdamping: 5
-    property real speed: rpmtest.speeddata
-    property int speedunits: 2
+    property bool movedown:left_joystick
+    property bool moveup:right_joystick
+    property bool increament:up_joystick
+    property bool decreament:down_joystick
 
-    property real watertemp: rpmtest.watertempdata
-    property real waterhigh: 0
-    property real waterlow: 80
-    property real waterunits: 1
+    ///////////////////////////////
+    // Settings menu (new)
+    ///////////////////////////////
 
-    property real fuel: rpmtest.fueldata
-    property real fuelhigh: 0
-    property real fuellow: 0
-    property real fuelunits
-    property real fueldamping
-
-    property real o2: rpmtest.o2data
-    property real map: rpmtest.mapdata
-    property real maf: rpmtest.mafdata
-
-    property real oilpressure: rpmtest.oilpressuredata
-    property real oilpressurehigh: 0
-    property real oilpressurelow: 0
-    property real oilpressureunits: 0
-
-    property real oiltemp: rpmtest.oiltempdata
-    property real oiltemphigh: 90
-    property real oiltemplow: 90
-    property real oiltempunits: 1
-
-    property real batteryvoltage: rpmtest.batteryvoltagedata
-
-    property int mph: (speed * 0.62)
-
-    property int gearpos: rpmtest.geardata
-
-    property real speed_spring: 1
-    property real speed_damping: 1
-
-    property real rpm_needle_spring: 3.0 //if(rpm<1000)0.6 ;else 3.0
-    property real rpm_needle_damping: 0.2 //if(rpm<1000).15; else 0.2
-
-    property bool changing_page: rpmtest.changing_pagedata
-
-    property string white_color: "#FFFFFF"
-    property string primary_color: "#000000"; //#FFBF00 for amber
-    property string night_light_color: "#ACFAFF"  //Pale Indiglo Blue
-    property string sweetspot_color: "#FFA500" //Cam Changeover Rev colpr
-    property string warning_red: "#C60000" //Redline/Warning colors
-    property string nightlight_pink: "#F85653"
-    property string nightlight_orange: "#F89553"
-    property string engine_warmup_color: "#eb7500"
-    property string background_color: "#000000"
-    property string soft_bkg_color: "#222222"
-
-    x: 0
-    y: 0
-
-    //Fonts
-    FontLoader {
-        id: twentytwosegment
-        source: "./fonts/22Segment.ttf"
+    SettingsMenu {
+        id: menu
+        target: root
+        open: root.settings_on_off
+        labelFont: geistFont.name
+        valueFont: geistFont.name
+        z: 1
+        onExitRequested: { root.settings_on_off = false; root.save_settings() }
     }
 
-    //Peak Values
+    onMovedownChanged: if (movedown && settings_on_off) menu.move(-1)
+    onMoveupChanged:   if (moveup   && settings_on_off) menu.move(1)
 
-    property int peak_rpm: 0
-    property int peak_speed: 0
-    property int peak_water: 0
-    property int peak_oil: 0
-    property bool car_movement: false
-
-    onRpmChanged: if (rpm > peak_rpm) peak_rpm = rpm
-
-    onSpeedChanged: {
-        if (speed > peak_speed) peak_speed = speed
-        if (speed > 10 && !car_movement) car_movement = true
+    // up: opens the menu, otherwise changes the selected value
+    onIncreamentChanged: {
+        if (increament) {
+            if (!settings_on_off) { if (!menu_on_off) settings_on_off = true }
+            else if (!menu_on_off) menu.press(1)
+        } else menu.release()
     }
 
-    onWatertempChanged: if (watertemp > peak_water) peak_water = watertemp
-
-    onOiltempChanged: if (oiltemp > peak_oil) peak_oil = oiltemp
-   
-    //Utility  
-    function easyFtemp(degreesC){
-        return ((((degreesC.toFixed(0))*9)/5)+32).toFixed(0)
-    }
-    
-    function getPeakSpeed(){
-        if (root.speedunits === 0) return root.peak_speed.toFixed(0); else return (root.peak_speed*.62).toFixed(0)
+    // down: changes the selected value
+    onDecreamentChanged: {
+        if (decreament) { if (settings_on_off) menu.press(-1) }
+        else menu.release()
     }
 
-    function getTemp(fluid){
-        if(fluid == "COOLANT"){
-            if(root.seatbelt && root.car_movement && root.speed === 0){ 
-                 if(root.waterunits !== 1)
-                    return easyFtemp(root.peak_water) + "F"
-                else 
-                    return root.peak_water.toFixed(0) + "C"
-            }
-            else{
-                if(root.waterunits !== 1)
-                    return easyFtemp(root.watertemp) + "F"
-                else 
-                    return root.watertemp.toFixed(0) + "C"
-            }
-        }
-        else{
-            if(root.seatbelt && root.car_movement && root.speed === 0){
-                 if(root.oiltempunits !== 1)
-                    return easyFtemp(root.peak_oil) 
-                else 
-                    return root.peak_oil.toFixed(0) + "C"
-            }
-            else{
-                if(root.oiltempunits !== 1)
-                    return easyFtemp(root.oiltemp) 
-                else 
-                    return root.oiltemp.toFixed(0) + "C"
-            }
-        }
-    }
+    ///////////////////////////////
+    // Dial: shrinks to a live preview while settings are open
+    ///////////////////////////////
 
-    function getGear(){
-        switch(rpmtest.geardata){
-            case 0:
-                return 'n'
-            case 1:
-                return 1
-            case 2:
-                return 2
-            case 3:
-                return 3
-            case 4:
-                return 4
-            case 5:
-                return 5
-            case 6:
-                return 6
-            case 10:
-                return 'r'
-            default:
-                return '-'
-        }
-    }
-
-    function interpolateColor(rpm, startRpm, endRpm, startColor, endColor) {
-        // Ensure RPM is within bounds
-        let progress = Math.max(0, Math.min(1, (rpm - startRpm) / (endRpm - startRpm)));
-
-        // Convert hex colors to RGB
-        let startR = parseInt(startColor.slice(1, 3), 16);
-        let startG = parseInt(startColor.slice(3, 5), 16);
-        let startB = parseInt(startColor.slice(5, 7), 16);
-
-        let endR = parseInt(endColor.slice(1, 3), 16);
-        let endG = parseInt(endColor.slice(3, 5), 16);
-        let endB = parseInt(endColor.slice(5, 7), 16);
-
-        // Interpolate RGB values
-        let r = Math.round(startR + (endR - startR) * progress).toString(16).padStart(2, '0');
-        let g = Math.round(startG + (endG - startG) * progress).toString(16).padStart(2, '0');
-        let b = Math.round(startB + (endB - startB) * progress).toString(16).padStart(2, '0');
-
-        // Return hex color
-        return `#${r}${g}${b}`;
-    }
-
-    Rectangle {
-        id: background_rect
-        x: 0   
-        y: 0
+    // `screen` is the thing that shrinks when settings open. Anything inside it
+    // (the Taikyu dial and/or your pasted screen QML) shrinks together.
+    Item {
+        id: screen
         width: 800
         height: 480
-        color: root.background_color
-        border.width: 0
+        clip: true
         z: 0
-    }
-    Rectangle {
-        id: rpm_thing
-        x: 0
-        y: 70
-        z: 4
-        height: 188
-        width: root.rpm <= 5000 ? 30 + (root.rpm * 0.049) : (root.rpm * 0.1) - 224
-        property color currentColor: root.rpm < 7500 ? 
-            interpolateColor(root.rpm, 4500, 5000, 
-                !root.sidelight ? root.white_color : night_light_color, 
-                !root.sidelight ? root.sweetspot_color : root.nightlight_orange) :
-            interpolateColor(root.rpm, 7500, 8000, 
-                !root.sidelight ? root.sweetspot_color : root.nightlight_orange, 
-                !root.sidelight ? root.warning_red : root.nightlight_pink)
-        color: currentColor
-        Behavior on color {
-            ColorAnimation { duration: 50 }  // Smooth over one frame
-        }
-    }
-    Item{
-        id: rpm_line
-        x: if(root.rpm <= 5000){28 + (root.rpm * 0.049)} else{
-            (root.rpm * 0.1) - 225
-        }
-        opacity: 0
-        y:70;z:9
-        Rectangle{
-            height: 188; width: 4
-            color: root.white_color
-        }
-    }
-    Image{
-        x:0; y:0; z: 10
-        id: rpm_line_mask
-        source: !root.sidelight ? './taikyu/tach-marker-mask.png' : './taikyu/indiglo/tach-marker-mask.png'
-        opacity:0
-    } 
-    Image{
-        id: tach_mask 
-        x:0; y:0; z:8
-        source: './taikyu/tach-mask.png'
-    }
-    Image{
-        id: tach_outlines
-        x: 28; y: 70; z: 11;
-        source: if(!root.sidelight) './taikyu/tach-outlines.png'; else './taikyu/indiglo/tach-outlines.png'
-        opacity: 0;
-    }  
-    Image{
-        id: red_zone
-        x: 576;y:70;z:1
-        source: './taikyu/red-zone.png'
+
+        x: root.settings_on_off ? 120 : 0
+        Behavior on x { NumberAnimation { duration: 500 } }
+        y: root.settings_on_off ? 15 : 0
+        Behavior on y { NumberAnimation { duration: 500 } }
+        scale: root.settings_on_off ? 0.7 : 1.0
+        Behavior on scale { NumberAnimation { duration: 500 } }
+    TaikyuDisplay  {
+        id: dial
+        odometer:root.odometer/10      // dial wants 6 digits
+        tripmeter:root.tripmeter
+        shiftvalue:root.shiftvalue
+        rpm:root.rpm
+        rpmlimit:root.rpmlimit
+        rpmdamping:root.rpmdamping
+        speed:root.speed
+        speedunits: root.speedunits
+        watertemp:root.watertemp
+        waterhigh:root.waterhigh
+        waterlow:root.waterlow
+        waterunits: root.waterunits
+        fuel:root.fuel
+        fuelhigh:root.fuelhigh
+        fuellow:root.fuellow
+        fuelunits: root.fuelunits
+        o2: root.o2
+        afrlow: root.afrlow
+        afrhigh: root.afrhigh
+        afrunits: root.afrunits
+        afrshow: root.afrshow
+        oiltempshow: root.oiltempshow
+        oilpressureshow: root.oilpressureshow
+        map: root.map
+        maf: root.maf
+        oilpressure: root.oilpressure
+        oilpressurehigh:root.oilpressurehigh
+        oilpressurelow:root.oilpressurelow
+        oilpressureunits: root.oilpressureunits
+        oiltemp: root.oiltemp
+        oiltemphigh:root.oiltemphigh
+        oiltemplow: root.oiltemplow
+        oiltempunits: root.oiltempunits
+        batteryvoltage: root.batteryvoltage
+        userColor: Qt.rgba(root.red/255, root.green/255, root.blue/255, 1)
+        gearpos: root.gearpos
+        udp_message:root.udp_message
+        inputs: root.inputs
+        settingsFocus: menu.focusKey
+        opacity: 1
+        width: 800
+        height: 480
+        antialiasing: true
+        clip: true
     }
 
-    
-    Timer{
-        interval:0; running:root.ignition; repeat: false
-        onTriggered: first_step.start()
-    }
-    
-    ParallelAnimation{
-        id: first_step
-        NumberAnimation{
-            target: tach_outlines; property: "opacity"; from: 0.00; to: 1.0; duration: 1000
-        }
-    }
-    Timer{
-        interval: 1000; running:root.ignition; repeat: false
-        onTriggered: second_step.start()
-    }
-    ParallelAnimation{
-        id: second_step
-        NumberAnimation{
-                target: rpm_line_mask; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
-            }
-        
-        NumberAnimation{
-            target: speed_text; property: "opacity"; from: 0.00; to: 1.00; duration: 1000;
-        }
-        NumberAnimation{
-            target: gear_display_char; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
-        }
-        NumberAnimation{
-            target: rpm_display; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
-        }
-        NumberAnimation{
-            target: rpm_display; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
-        }
-        NumberAnimation{
-            target: speed_teller; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
-        }
-        NumberAnimation{
-            target: gear_label; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
-        }
-    }
-
-    Timer{
-        interval: 1500; running: root.ignition; repeat: false
-        onTriggered: third_step.start()
-    }
-    ParallelAnimation{
-        id: third_step
-        NumberAnimation{
-            target: divider; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
-        }
-        NumberAnimation{
-            target: coolant_temp_display; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
-        }
-        NumberAnimation{
-            target: fuel_level_display; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
-        }
-        NumberAnimation{
-                target: rpm_line; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
-            }
-    }
-    Timer{
-        interval: 2000; running: root.ignition; repeat: false
-        onTriggered: fourth_step.start()
-    }
-    ParallelAnimation{
-        id: fourth_step
-        NumberAnimation{
-            target: optional_inputs; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
-        }
-    }
-    Timer{
-            interval: 2500; running: root.ignition; repeat: false
-            onTriggered: fifth_step.start()
-        }
-    ParallelAnimation{
-        id: fifth_step
-        NumberAnimation{
-            target: cool_coolant_bar; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
-        }
-        NumberAnimation{
-            target: hot_coolant_bar; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
-        }
-        NumberAnimation{
-            target: coolant_soft_bkg; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
-        }
-        NumberAnimation{
-            target: fuel_bar; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
-        }
-        NumberAnimation{
-            target: fuel_soft_bkg; property: "opacity"; from: 0.00; to: 1.00; duration: 1000
-        }
-    }
-    Image{
-        id: divider
-        x: 20; y:277; z: 4
-        opacity: 0
-        source: if(!root.sidelight) './taikyu/divider.png'; else './taikyu/indiglo/divider.png'
-    }
-    Item{
-        z:12
-        property string speedtext: if(root.peak_speed === 0 && root.rpm === 0) "Push Start Button"; else "Peak Speed "+ getPeakSpeed() + "   Peak RPM " + root.peak_rpm
-            property string spacing: "   "
-            property string combined: speedtext + spacing
-            property string display: combined.substring(step) + combined.substring(0, step)
-            property int step: 0
-            Timer {
-                interval: 250
-                running: true
-                repeat: true
-                onTriggered: parent.step = (parent.step + 1) % parent.combined.length
-            }
-        Text{
-            id: speed_text
-            x: 567; y: 165; z: 11
-            width: 208
-            font.family: twentytwosegment.name
-            font.italic: true
-            font.pixelSize: 100
-            horizontalAlignment: Text.AlignRight
-            color: if(!root.sidelight) root.white_color; else night_light_color
-            renderType: Text.NativeRendering
-            opacity: 0
-            clip: true
-                text: if((root.speed === 0 && !root.car_movement && root.rpm === 0) || (root.speed === 0 && root.seatbelt && root.car_movement)){
-                        parent.display
-                    }
-                    else{
-                        if (root.speedunits === 0) root.speed.toFixed(0); else (root.speed*.62).toFixed(0)
-                    }
-        }
-    }
-    Text{
-        id: speed_text_bkg
-        x: 621; y: 165; z: 11
-        width: 152
-        font.family: twentytwosegment.name
-        font.italic: true
-        font.pixelSize: 100
-        horizontalAlignment: Text.AlignRight
-        color: "#222222"
-        text: "@@@"
-        renderType: Text.NativeRendering
-    }
-    Image{
-        id: speed_teller
-        x: 726; y:250; z: 11
-        opacity: 0
-        source: if (root.speedunits === 0){
-                    if(!root.sidelight)'./taikyu/kmh.png'
-                    else './taikyu/indiglo/kmh.png'
-                    }
-                else {
-                    if(!root.sidelight)'./taikyu/mph.png'
-                    else './taikyu/indiglo/mph.png'
-                    }
-    }
-    Item{
-        id: rpm_display
-        z: 14
-        opacity: 0
-        Text{
-            color: "#000000"
-            text: root.rpm
-            font.family: twentytwosegment.name
-            font.bold: false
-            font.pixelSize: 30
-            renderType: Text.NativeRendering
-            x: 640; y: 132; z:17
-            horizontalAlignment: Text.AlignRight
-            width: 85
-        }
-        Image{
-            x:586; y: 130; z:16
-            visible: if(root.rpm < root.rpmlimit) true; else false
-            source: if(!root.sidelight)'./taikyu/rpm-container.png'; else './taikyu/indiglo/rpm-container.png'
-        }
-        Image{
-            id: rpm_container_blink
-            x:586; y: 130; z:16
-            visible: if(root.rpm >= root.rpmlimit) true; else false
-            source: if(!root.sidelight)'./taikyu/rpm-container-warning.png'; else './taikyu/indiglo/rpm-container-warning.png'
-            SequentialAnimation {
-                id: shiftBlinkAnimation
-                running: root.rpm >= root.rpmlimit
-                loops: Animation.Infinite
-                
-                NumberAnimation {
-                    target: rpm_container_blink
-                    property: "opacity"
-                    to: 100
-                    duration: 50
-                }
-                NumberAnimation {
-                    target: rpm_container_blink
-                    property: "opacity"
-                    to: 0
-                    duration: 50
-                }
-            }
-        }
-        
-    }
-    Item{
-        id: geardisplay
-        z: 11
-        Text{
-            id: gear_display_char
-            z:2
-            font.family: twentytwosegment.name
-            font.bold: false
-            font.pixelSize: 144
-            x: 354; y: 125
-            text: getGear()
-            color: if(!root.sidelight) root.white_color; else night_light_color
-            renderType: Text.NativeRendering
-            opacity: 0
-        }
-        Text{
-            z:1
-            font.family: twentytwosegment.name
-            font.bold: false
-            font.pixelSize: 144
-            x: 354; y: 125
-            text: '@'
-            color: "#222222"
-            renderType: Text.NativeRendering
-        }
-        Image{
-            id: gear_label
-            opacity: 0
-            source:if(!root.sidelight) './taikyu/gear.png'; else './taikyu/indiglo/gear.png'
-            x: 373; y: 250; z:2
-        }
-    }
+    // =====================================================================
+    //  PASTE YOUR SCREEN QML BELOW THIS LINE
+    //  (items go here as siblings of TaikyuDisplay; this whole `screen` Item
+    //   shrinks when settings are open)
+    //
+    //  - Read live values as root.rpm, root.speed, root.watertemp, ...
+    //    (anything declared at the top of this file)
+    //  - Use `root.` rather than `parent.` for them: `parent` is now `screen`
+    //  - If this replaces the Taikyu dial, delete the TaikyuDisplay { } block above
+    // =====================================================================
 
 
-    Item{
-         id: coolant_temp_display
-        opacity: 0        
-        Image{
-            //124 px high
-            source:if(!root.sidelight) './taikyu/coolant-mask.png'; else  './taikyu/indiglo/coolant-mask.png'
-            x: 20; y:312; z: 4
 
-        }
-        Rectangle{
-            id: cool_coolant_bar
-            x: 20
-            y: if (root.watertemp <= 100)432 - ((root.watertemp.toFixed(0) - 20) * 1.2125); else 335
-            z:3
-            color: if(!root.sidelight) root.white_color; else root.night_light_color
-            width: 116 
-            opacity: 0
-            height: if (root.watertemp <= 100)(root.watertemp.toFixed(0) - 20) * 1.2125; else 97
-        }
-        Rectangle{
-            id: hot_coolant_bar
-            x: 20
-            y:if (root.watertemp <= 120) 432 - ((root.watertemp - 20) * 1.2); else 313
-            color: if(!root.sidelight) root.warning_red; else root.nightlight_pink
-            width: 116;
-            opacity: 0
-            height:if (root.watertemp <= 120)(root.watertemp - 20) * 1.2; else 119
-            z:2
-        }
-        Rectangle{
-            id: coolant_soft_bkg
-            opacity: 0
-            x:20; y: 313; z: 1
-            height: 119; width: 116
-            color: root.soft_bkg_color
-        }
-        Text{
-            x: 42; y: 440
-            font.family: twentytwosegment.name
-            font.bold: false
-            font.pixelSize: 30
-            renderType: Text.NativeRendering
-            color: if(root.watertemp.toFixed(0) < root.waterhigh){
-                if(!root.sidelight) root.white_color; else root.night_light_color}
-                else{
-                    if(!root.sidelight) root.warning_red; else root.nightlight_pink
-                }
-            text: getTemp("COOLANT")
-            horizontalAlignment: Text.AlignRight
-            width:58
-        }
-    }
-    Item{
-        id: fuel_level_display
-        opacity: 0
-        Image{
-            source:if(!root.sidelight) './taikyu/fuel-mask.png'; else  './taikyu/indiglo/fuel-mask.png'
-            x: 672; y: 312;
-            z: 3
-        }
-        Rectangle{
-            id: fuel_bar
-            x: 672
-            y: 432 - (root.fuel * 1.19)
-            width: 116 
-            height: root.fuel * 1.19
-            opacity: 0
-            color: if (root.fuel > 30){
-                    if(!root.sidelight) root.white_color; else root.night_light_color
-                }else{
-                    if(!root.sidelight) root.warning_red; else root.nightlight_pink
-                }
-            z:2
-        }
-        Rectangle{
-            id: fuel_soft_bkg
-            opacity: 0
-            x:672; y: 313; z: 1
-            height: 119; width: 116
-            color: root.soft_bkg_color
-        }
 
-    }
-    Item{
-        id: optional_inputs
-        opacity: 0
-        Item{
-            id: oil_pressure_group
-            visible: if(root.oilpressurehigh !== 0 ) true; else false
-            Image{
-                source: if(!root.sidelight) './taikyu/info-stripe.png'; else './taikyu/indiglo/info-stripe.png'
-                x: 150; y: 310; z:2;
-            }
-            Image{
-                source: if(!root.sidelight) './taikyu/oil-press.png'; else './taikyu/indiglo/oil-press.png'
-                x:152;y:333;z:2;
-            }
-            Text{
-                x:280; y: 315; z:2
-                width: 93
-                font.family: twentytwosegment.name
-                font.bold: false
-                font.pixelSize: 48
-                renderType: Text.NativeRendering
-                horizontalAlignment: Text.AlignRight
-                text: if(root.oilpressureunits === 1) root.oilpressure.toFixed(1); else (root.oilpressure.toFixed(1) * 14.504).toFixed(0)
-                color: if(!root.sidelight) root.white_color; else root.night_light_color
-            }
-            Text{
-                x:280; y: 315; z:1
-                width: 93
-                font.family: twentytwosegment.name
-                font.bold: false
-                font.pixelSize: 48
-                renderType: Text.NativeRendering
-                horizontalAlignment: Text.AlignRight
-                text: "1@@@"
-                color: root.soft_bkg_color
-            }
-        }
-        Item{
-            id: oil_temp_group
-            visible: if(root.oiltemphigh !== 0 ) true; else false
-            Image{
-                source: if(!root.sidelight) './taikyu/info-stripe.png'; else './taikyu/indiglo/info-stripe.png'
-                x: 150; y: 380; z:2;
-            }
-            Image{
-                source: if(!root.sidelight) './taikyu/oil-temp.png'; else './taikyu/indiglo/oil-temp.png'
-                x:152;y:400;z:2;
-            }
-            Text{
-                x:280; y: 383; z:2
-                width: 93
-                font.family: twentytwosegment.name
-                font.bold: false
-                font.pixelSize: 48
-                renderType: Text.NativeRendering
-                horizontalAlignment: Text.AlignRight
-                text: getTemp("OIL")
-                color: if(root.oiltemp.toFixed(0) < root.oiltemphigh){
-                    if(!root.sidelight) root.white_color; else root.night_light_color}
-                    else{
-                        if(!root.sidelight) root.warning_red; else root.nightlight_pink
-                    }
-            }
-            Text{
-                x:280; y: 383; z:1
-                width: 93
-                font.family: twentytwosegment.name
-                font.bold: false
-                font.pixelSize: 48
-                renderType: Text.NativeRendering
-                horizontalAlignment: Text.AlignRight
-                text: "1@@@"
-                color: root.soft_bkg_color
-            }
-        }
-        Item{
-            id: afr_group
-            visible: if(root.afrhigh !== 0) true; else false
-            Image{
-                source: if(!root.sidelight) './taikyu/info-stripe.png'; else './taikyu/indiglo/info-stripe.png'
-                x: 423; y: 310; z:2;
-            }
-            Image{
-                source: if(!root.sidelight) './taikyu/afr.png'; else './taikyu/indiglo/afr.png'
-                x:425;y:333;z:2;
-            }
-            Text{
-                x:552; y: 315; z:2
-                width: 93
-                font.family: twentytwosegment.name
-                font.bold: false
-                font.pixelSize: 48
-                renderType: Text.NativeRendering
-                horizontalAlignment: Text.AlignRight
-                text: root.o2.toFixed(2)
-                color: if(!root.sidelight) root.white_color; else root.night_light_color
-            }
-            Text{
-                x:552; y: 315; z:1
-                width: 93
-                font.family: twentytwosegment.name
-                font.bold: false
-                font.pixelSize: 48
-                renderType: Text.NativeRendering
-                horizontalAlignment: Text.AlignRight
-                text: "1@@@"
-                color: root.soft_bkg_color
-            }
-        }
-    }
-    Text{ 
-        id: odometer
-        x: 671; y: 450
-        width: 77
-        color: if(!root.sidelight) root.white_color; else root.night_light_color
-        font.family: twentytwosegment.name
-        font.bold: false
-        font.pixelSize: 20
-        renderType: Text.NativeRendering
-        horizontalAlignment: Text.AlignRight
-        text: if (root.speedunits === 0)
-                        (root.odometer/.62).toFixed(0) 
-                    else if(root.speedunits === 1)
-                        root.odometer 
-                    else
-                        root.odometer
-    }
-    Image{
-        x: 751; y:453;
-        source: if (root.speedunits === 0){
-            if(!root.sidelight) './taikyu/km.png'; else './taikyu/indiglo/km.png'
-        }else{
-            if(!root.sidelight) './taikyu/mi.png'; else './taikyu/indiglo/mi.png'
-        }
-    }
-    Item{
-        id: idiot_lights
-        Image{
-            x: 346; y: 440
-            width: 33; height: 34 
-            z: 1
-            source: "./taikyu/warning-lights/gas-light.png"
-            visible: root.fuel < root.fuellow
-        }
-        Image{
-            x: 308; y: 440
-            width: 33; height: 34 
-            z: 1
-            source: "./taikyu/warning-lights/oil-light.png"
-            visible: root.oil
-        }
-        Image{
-            x: 270; y: 440
-            width: 33; height: 34 
-            z: 1
-            source: "./taikyu/warning-lights/brake-light.png"
-            visible: root.brake
-        }
-        Image{
-            x: 233; y: 440
-            width: 33; height: 34 
-            z: 1
-            source: "./taikyu/warning-lights/seatbelt-light.png"
-            visible: root.seatbelt
-        }
-        Image{
-            x: 195; y: 440
-            width: 33; height: 34 
-            z: 1
-            source: "./taikyu/warning-lights/blinker-light.png"
-            visible: root.leftindicator || root.rightindicator
-        }
-        Image{
-            x:573; y: 440
-             width: 33; height: 34 
-            z: 1
-            source: "./taikyu/warning-lights/checkengine-light.png"
-            visible: root.mil
-        }
-        Image{
-            x:498; y: 440
-            width: 33; height: 34 
-            z: 1
-            source: "./taikyu/warning-lights/battery-light.png"
-            visible: root.battery
-        }
-        Image{
-            x:460; y: 440
-            width: 33; height: 34 
-            z: 1
-            source: "./taikyu/warning-lights/airbag-light.png"
-            visible: root.airbag
-        }
-        Image{
-            x:422; y: 440
-            width: 33; height: 34 
-            z: 1
-            source: "./taikyu/warning-lights/hibeams-light.png"
-            visible: root.mainbeam
-        }
-        Image{
-            x:384; y: 440
-            width: 33; height: 34 
-            z: 1
-            source: "./taikyu/warning-lights/abs-light.png"
-            visible: root.abs
-        }
-    }
-}//End Taikyu Dash
+    // =====================================================================
+    //  PASTE YOUR SCREEN QML ABOVE THIS LINE
+    // =====================================================================
+    }   // end of `screen`
 
+
+    GridBackground {
+        anchors.fill: parent
+        z: -1
+        opacity: root.settings_on_off ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 500 } }
+        visible: opacity > 0
+        backColor:   "#06100c"   // gap colour, top
+        backColor2:  "#030806"   // gap colour bottom, fog and vignette
+        tileColor:    Qt.rgba(root.red/255, root.green/255, root.blue/255, 1)   // tile, lower half of its gradient
+        tileColor2:  Qt.rgba(root.red/255, root.green/255, root.blue/255, .2)   // tile, upper half
+        edgeColor:   "#dddddd"   // rim light on the tile edges
+        accentColor: "#ffd400"   // the odd glowing tile
+        tilt: .7
+    }
+}
