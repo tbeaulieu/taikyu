@@ -3,7 +3,19 @@
 # taikyu
  GARW Dash, SuperTaikyu-inspired
 
-Per usual, to see oil temperature/oil pressure/afr, set the HIGH value greater than zero in the settings, otherwise they are hidden.
+Oil temperature, oil pressure and AFR are optional: turn each one on with its Show row in the settings menu.
+
+The wideband input (`o2data`) arrives as lambda. The AFR menu can show it as lambda or AFR (lambda x 14.7) and set High / Low limits. The limits are always in AFR; outside them the readout turns red, and 0 turns a limit off. Coolant and oil temp High limits are in Celsius, and 0 turns them off too.
+
+## Layout
+
+- `Taikyu.qml` - entry file: live data, config load/save, joystick handling, settings menu
+- `TaikyuDisplay.qml` - the dial itself
+- `SettingsMenu.qml`, `SettingBox.qml`, `MonoText.qml`, `Theme.qml`, `GridBackground.qml` - settings menu (shared with AgeSolo)
+- `SettingsPreview.qml` - standalone menu preview, not loaded by the dash
+- `Taikyu.qml.png` - preview shown in the dash picker
+
+Settings are saved as JSON in `/opt/IC7/screen_configs/Taikyu_config.json`. An existing `Taikyu_config.txt` is imported once on first run.
 
 This dash will require you to update your gear settings (under settings -> gears) for the calculated gear (unless you're very fancy and running a sequential with a canbus output), the following works decently for me currently with a stock C64 transmission:
 
