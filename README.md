@@ -5,7 +5,7 @@
 
 Oil temperature, oil pressure and AFR are optional: turn each one on with its Show row in the settings menu.
 
-The wideband input (`o2data`) arrives as lambda. The AFR menu can show it as lambda or AFR (lambda x 14.7) and set High / Low limits. The limits are always in AFR; outside them the readout turns red, and 0 turns a limit off. Coolant and oil temp High limits are in Celsius and the oil pressure Low limit is in bar; 0 turns them off too.
+The wideband input (`o2data`) arrives as lambda. The AFR menu can show it as lambda or AFR (lambda x 14.7) and set High / Low limits. The limits are always in AFR; outside them the readout turns red, and 0 turns a limit off. Coolant and oil temp High limits are in the units you display (changing Units converts them) and the oil pressure Low limit is in bar; 0 turns them off too.
 
 ## Layout
 
