@@ -75,7 +75,7 @@ Item {
     property bool right_joystick: inputs & 0x40000000 || root.udp_right
 
     property int odometer: rpmtest.odometer0data/10 //Overridden by Taikyu.qml: km or miles to match speedunits, div by 10 to get 6 digits
-    property int tripmeter: rpmtest.tripmileage0data*0.62
+    property int tripmeter: rpmtest.tripmileage0data*0.621371
     property real value: 0
     property real shiftvalue: 0
 
@@ -104,6 +104,8 @@ Item {
     property int oiltempshow: 0           // 1 = show the oil temp readout
     property int oilpressureshow: 0       // 1 = show the oil pressure readout
     readonly property real afr: o2 * 14.7
+    // Oil pressure Low is bar (the sender value is bar); 0 = no warning
+    readonly property bool oilpressureOk: oilpressurelow === 0 || oilpressure >= oilpressurelow
     readonly property bool afrWarn: (afrhigh > 0 && afr > afrhigh) || (afrlow > 0 && afr < afrlow)
     property real map: rpmtest.mapdata
     property real maf: rpmtest.mafdata
@@ -120,7 +122,7 @@ Item {
 
     property real batteryvoltage: rpmtest.batteryvoltagedata
 
-    property int mph: (speed * 0.62)
+    property int mph: Math.round(speed * 0.621371)
 
     property int gearpos: rpmtest.geardata
 
@@ -181,7 +183,7 @@ Item {
     }
     
     function getPeakSpeed(){
-        if (root.speedunits === 0) return root.peak_speed.toFixed(0); else return (root.peak_speed*.62).toFixed(0)
+        if (root.speedunits === 0) return root.peak_speed.toFixed(0); else return (root.peak_speed*.621371).toFixed(0)
     }
 
     function getTemp(fluid){
@@ -459,7 +461,7 @@ Item {
                         parent.display
                     }
                     else{
-                        if (root.speedunits === 0) root.speed.toFixed(0); else (root.speed*.62).toFixed(0)
+                        if (root.speedunits === 0) root.speed.toFixed(0); else (root.speed*.621371).toFixed(0)
                     }
         }
     }
@@ -674,7 +676,11 @@ Item {
                 renderType: Text.NativeRendering
                 horizontalAlignment: Text.AlignRight
                 text: if(root.oilpressureunits === 1) root.oilpressure.toFixed(1); else (root.oilpressure.toFixed(1) * 14.504).toFixed(0)
-                color: if(!root.sidelight) root.white_color; else root.night_light_color
+                color: if(root.oilpressureOk){
+                    if(!root.sidelight) root.white_color; else root.night_light_color}
+                    else{
+                        if(!root.sidelight) root.warning_red; else root.nightlight_pink
+                    }
             }
             Text{
                 x:280; y: 315; z:1
@@ -808,7 +814,7 @@ Item {
             width: 33; height: 34 
             z: 1
             source: "./img/warning-lights/brake-light.png"
-            visible: root.brake
+            visible: root.brake || root.handbrake
         }
         Image{
             x: 233; y: 440
@@ -837,6 +843,13 @@ Item {
             z: 1
             source: "./img/warning-lights/battery-light.png"
             visible: root.battery
+        }
+        Image{
+            x:535.5; y: 440
+            width: 33; height: 34 
+            z: 1
+            source: "./img/warning-lights/door-light.png"
+            visible: root.doorswitch
         }
         Image{
             x:460; y: 440
@@ -869,7 +882,7 @@ Item {
     readonly property int focusSpot: {
         var k = root.settingsFocus
         if (k === "waterunits" || k === "waterhigh") return 0
-        if (k === "oilpressureshow" || k === "oilpressureunits") return 1
+        if (k === "oilpressureshow" || k === "oilpressureunits" || k === "oilpressurelow") return 1
         if (k === "oiltempshow" || k === "oiltempunits" || k === "oiltemphigh") return 2
         if (k === "afrshow" || k === "afrunits" || k === "afrhigh" || k === "afrlow") return 3
         if (k === "fuellow") return 4
